@@ -30,6 +30,50 @@ export VALIDATE_GENESIS="${VALIDATE_GENESIS:-0}"
 
 [ -z "$CHAIN_ID" ] && echo "CHAIN_ID not found" && exit
 
+# Cosmovisor
+if [ "$COSMOVISOR_ENABLED" == "1" ]; then
+  export COSMOVISOR_VERSION="${COSMOVISOR_VERSION:-"1.5.0"}"
+  export COSMOVISOR_URL="${COSMOVISOR_URL:-"https://github.com/cosmos/cosmos-sdk/releases/download/cosmovisor%2Fv$COSMOVISOR_VERSION/cosmovisor-v$COSMOVISOR_VERSION-$(uname -s)-$(uname -m | sed "s|x86_64|amd64|").tar.gz"}"
+
+  # Download Binary
+  if [ ! -f "/bin/cosmovisor" ]; then
+    echo "Downloading Cosmovisor from $COSMOVISOR_URL..."
+    mkdir -p cosmovisor_temp
+    cd cosmovisor_temp
+    curl -Ls $COSMOVISOR_URL | tar zx
+    cp cosmovisor /bin/cosmovisor
+    cd ..
+    rm -r cosmovisor_temp
+  fi
+
+  # Set up the environment variables
+  export DAEMON_NAME=$PROJECT_BIN
+  export DAEMON_HOME=$PROJECT_ROOT
+
+  # Setup Folder Structure
+  mkdir -p $PROJECT_ROOT/cosmovisor/upgrades
+  mkdir -p $PROJECT_ROOT/cosmovisor/genesis/bin
+  cp "/bin/$PROJECT_BIN" $PROJECT_ROOT/cosmovisor/genesis/bin/
+fi
+
+if [ "$#" -ne 0 ]; then
+  export START_CMD="$@"
+fi
+
+if [ -z "$START_CMD" ]; then
+  if [ "$COSMOVISOR_ENABLED" == "1" ]; then
+    export START_CMD="cosmovisor run start"
+  else
+    export START_CMD="$PROJECT_BIN start"
+  fi
+fi
+
+# if RERUN_CHECK is set, and genesis.json is present, then we assume that the container is being restarted
+if [ -n "$RERUN_CHECK" ] && [ -f "$CONFIG_PATH/genesis.json" ]; then
+  echo "Running '$START_CMD'..."
+  exec $START_CMD
+fi
+
 if [[ -n "$BINARY_URL" && ! -f "/bin/$PROJECT_BIN" ]]; then
   echo "Download binary $PROJECT_BIN from $BINARY_URL"
   curl -Lso /bin/$PROJECT_BIN $BINARY_URL
@@ -282,7 +326,7 @@ if [ "$DOWNLOAD_SNAPSHOT" == "1" ]; then
     echo "Downloading snapshot from $SNAPSHOT_URL..."
     rm -rf $PROJECT_ROOT/data;
     mkdir -p $PROJECT_ROOT/data;
-    cd $PROJECT_ROOT/data
+    cd $PROJECT_ROOT
 
     tar_cmd="tar xf -"
     # case insensitive match
@@ -322,49 +366,11 @@ fi
 # Validate genesis
 [ "$VALIDATE_GENESIS" == "1" ] && $PROJECT_BIN validate-genesis
 
-# Cosmovisor
-if [ "$COSMOVISOR_ENABLED" == "1" ]; then
-  export COSMOVISOR_VERSION="${COSMOVISOR_VERSION:-"1.5.0"}"
-  export COSMOVISOR_URL="${COSMOVISOR_URL:-"https://github.com/cosmos/cosmos-sdk/releases/download/cosmovisor%2Fv$COSMOVISOR_VERSION/cosmovisor-v$COSMOVISOR_VERSION-$(uname -s)-$(uname -m | sed "s|x86_64|amd64|").tar.gz"}"
-
-  # Download Binary
-  if [ ! -f "/bin/cosmovisor" ]; then
-    echo "Downloading Cosmovisor from $COSMOVISOR_URL..."
-    mkdir -p cosmovisor_temp
-    cd cosmovisor_temp
-    curl -Ls $COSMOVISOR_URL | tar zx
-    cp cosmovisor /bin/cosmovisor
-    cd ..
-    rm -r cosmovisor_temp
-  fi
-
-  # Set up the environment variables
-  export DAEMON_NAME=$PROJECT_BIN
-  export DAEMON_HOME=$PROJECT_ROOT
-
-  # Setup Folder Structure
-  mkdir -p $PROJECT_ROOT/cosmovisor/upgrades
-  mkdir -p $PROJECT_ROOT/cosmovisor/genesis/bin
-  cp "/bin/$PROJECT_BIN" $PROJECT_ROOT/cosmovisor/genesis/bin/
-fi
-
 # preseed priv_validator_state.json if missing
 # ref. https://github.com/tendermint/tendermint/issues/8389
 if [[ ! -f "$PROJECT_ROOT/data/priv_validator_state.json" ]]; then
   mkdir -p "$PROJECT_ROOT/data" 2>/dev/null || :
   echo '{"height":"0","round":0,"step":0}' > "$PROJECT_ROOT/data/priv_validator_state.json"
-fi
-
-if [ "$#" -ne 0 ]; then
-  export START_CMD="$@"
-fi
-
-if [ -z "$START_CMD" ]; then
-  if [ "$COSMOVISOR_ENABLED" == "1" ]; then
-    export START_CMD="cosmovisor run start"
-  else
-    export START_CMD="$PROJECT_BIN start"
-  fi
 fi
 
 if [ -n "$SNAPSHOT_PATH" ]; then
