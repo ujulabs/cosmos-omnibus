@@ -12,8 +12,8 @@ services:
         PROJECT: stargaze
         PROJECT_BIN: starsd
         PROJECT_DIR: .starsd
-        VERSION: v12.2.0
+        VERSION: v13.0.0
         REPOSITORY: https://github.com/public-awesome/stargaze
         NAMESPACE: STARSD
         GOLANG_VERSION: 1.21-bullseye
-        WASMVM_URL: https://github.com/CosmWasm/wasmvm/releases/download/v1.3.1/libwasmvm.x86_64.so
+        WASMVM_URL: https://github.com/CosmWasm/wasmvm/releases/download/v1.5.2/libwasmvm.x86_64.so
